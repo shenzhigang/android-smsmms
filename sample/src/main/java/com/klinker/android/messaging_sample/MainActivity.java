@@ -197,7 +197,7 @@ public class MainActivity extends Activity {
                     message.setImage(BitmapFactory.decodeResource(getResources(), R.drawable.android));
                 }
 
-                transaction.sendNewMessage(message, Transaction.NO_THREAD_ID);
+                transaction.sendNewMessage(message);
             }
         }).start();
     }

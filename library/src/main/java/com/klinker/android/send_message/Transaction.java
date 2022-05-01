@@ -117,13 +117,15 @@ public class Transaction {
      * Called to send a new message depending on settings and provided Message object
      * If you want to send message as mms, call this from the UI thread
      *
-     * @param message  is the message that you want to send
-     * @param threadId is the thread id of who to send the message to (can also be set to Transaction.NO_THREAD_ID)
+     * @param message               is the message that you want to send
      * @param sentMessageParcelable is the piece of data that will be retrieved when BroadcastReceiver is called for sent message
-     * @param deliveredParcelable is the piece of data that will be retrieved when BroadcastReceiver is called for delivered message
+     * @param deliveredParcelable   is the piece of data that will be retrieved when BroadcastReceiver is called for delivered message
      */
-    public void sendNewMessage(Message message, long threadId,
-                               Parcelable sentMessageParcelable, Parcelable deliveredParcelable) {
+    public void sendNewMessage(
+            final Message message,
+            final Parcelable sentMessageParcelable,
+            final Parcelable deliveredParcelable
+    ) {
         this.saveMessage = message.getSave();
 
         // if message:
@@ -145,7 +147,7 @@ public class Transaction {
             if (!settings.getGroup()) {
                 // send individual MMS to each person in the group of addresses
                 for (String address : message.getAddresses()) {
-                    sendMmsMessage(message.getText(), message.getFromAddress(), new String[] { address },
+                    sendMmsMessage(message.getText(), message.getFromAddress(), new String[]{address},
                             message.getImages(), message.getImageNames(), message.getParts(), message.getSubject(),
                             message.getSave(), message.getMessageUri());
                 }
@@ -155,10 +157,24 @@ public class Transaction {
                         message.getSave(), message.getMessageUri());
             }
         } else {
-            sendSmsMessage(message.getText(), message.getAddresses(), threadId, message.getDelay(),
+            String[] addresses = message.getAddresses();
+            String text = message.getText();
+            // add signature to original text to be saved in database (does not strip unicode for saving though)
+            if (!settings.getSignature().equals("")) {
+                text += "\n" + settings.getSignature();
+            }
+
+            if (addresses.length > 1) {
+                // add a dummy message for this thread if it is a group message
+                String mergedAddresses = TextUtils.join(" ", addresses);
+                long broadCastThreadId = Utils.getOrCreateThreadId(context, new HashSet<>(Arrays.asList(addresses)));
+                sendSmsMessage(text, mergedAddresses, broadCastThreadId, message.getDelay(),
+                        sentMessageParcelable, deliveredParcelable);
+            }
+
+            sendSmsMessages(text, addresses, message.getDelay(),
                     sentMessageParcelable, deliveredParcelable);
         }
-
     }
 
     /**
@@ -166,10 +182,9 @@ public class Transaction {
      * If you want to send message as mms, call this from the UI thread
      *
      * @param message  is the message that you want to send
-     * @param threadId is the thread id of who to send the message to (can also be set to Transaction.NO_THREAD_ID)
      */
-    public void sendNewMessage(Message message, long threadId) {
-        this.sendNewMessage(message, threadId, new Bundle(), new Bundle());
+    public void sendNewMessage(Message message) {
+        this.sendNewMessage(message, new Bundle(), new Bundle());
     }
 
     /**
@@ -211,159 +226,171 @@ public class Transaction {
         return this;
     }
 
-    private void sendSmsMessage(String text, String[] addresses, long threadId, int delay,
-                                Parcelable sentMessageParcelable, Parcelable deliveredParcelable) {
+    private void sendSmsMessages(
+            final String text,
+            final String[] addresses,
+            final int delay,
+            final Parcelable sentMessageParcelable,
+            final Parcelable deliveredParcelable
+    ) {
         Log.v("send_transaction", "message text: " + text);
-        Uri messageUri = null;
+        if (saveMessage) {
+            // save the message for each of the addresses
+            for (String address : addresses) {
+                long smsThreadId = Utils.getOrCreateThreadId(context, address);
+                sendSmsMessage(text, address, smsThreadId, delay, sentMessageParcelable, deliveredParcelable);
+            }
+
+        }
+    }
+
+    private void sendSmsMessage(
+            final String text,
+            final String address,
+            final long threadId,
+            final int delay,
+            final Parcelable sentMessageParcelable,
+            final Parcelable deliveredParcelable
+    ) {
+        Uri messageUri;
         int messageId = 0;
         if (saveMessage) {
             Log.v("send_transaction", "saving message");
-            // add signature to original text to be saved in database (does not strip unicode for saving though)
-            if (!settings.getSignature().equals("")) {
-                text += "\n" + settings.getSignature();
+
+            Calendar cal = Calendar.getInstance();
+            ContentValues values = new ContentValues();
+            values.put("address", address);
+            values.put("body", settings.getStripUnicode() ? StripAccents.stripAccents(text) : text);
+            values.put("date", cal.getTimeInMillis() + "");
+            values.put("read", 1);
+            values.put("type", 4);
+
+            Log.v("send_transaction", "saving message with thread id: " + threadId);
+
+            values.put("thread_id", threadId);
+            messageUri = context.getContentResolver().insert(Uri.parse("content://sms/"), values);
+
+            Log.v("send_transaction", "inserted to uri: " + messageUri);
+
+            Cursor query = context.getContentResolver().query(messageUri, new String[]{"_id"}, null, null, null);
+            if (query != null) {
+                if (query.moveToFirst()) {
+                    messageId = query.getInt(0);
+                }
+                query.close();
             }
 
-            // save the message for each of the addresses
-            for (int i = 0; i < addresses.length; i++) {
-                Calendar cal = Calendar.getInstance();
-                ContentValues values = new ContentValues();
-                values.put("address", addresses[i]);
-                values.put("body", settings.getStripUnicode() ? StripAccents.stripAccents(text) : text);
-                values.put("date", cal.getTimeInMillis() + "");
-                values.put("read", 1);
-                values.put("type", 4);
+            Log.v("send_transaction", "message id: " + messageId);
 
-                // attempt to create correct thread id if one is not supplied
-                if (threadId == NO_THREAD_ID || addresses.length > 1) {
-                    threadId = Utils.getOrCreateThreadId(context, addresses[i]);
+            // set up sent and delivered pending intents to be used with message request
+            Intent sentIntent;
+            if (explicitSentSmsReceiver == null) {
+                sentIntent = new Intent(SMS_SENT);
+                BroadcastUtils.addClassName(context, sentIntent, SMS_SENT);
+            } else {
+                sentIntent = explicitSentSmsReceiver;
+            }
+
+            sentIntent.putExtra("message_uri", messageUri == null ? "" : messageUri.toString());
+            sentIntent.putExtra(SENT_SMS_BUNDLE, sentMessageParcelable);
+            PendingIntent sentPI = PendingIntent.getBroadcast(
+                    context, messageId, sentIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+            Intent deliveredIntent;
+            if (explicitDeliveredSmsReceiver == null) {
+                deliveredIntent = new Intent(SMS_DELIVERED);
+                BroadcastUtils.addClassName(context, deliveredIntent, SMS_DELIVERED);
+            } else {
+                deliveredIntent = explicitDeliveredSmsReceiver;
+            }
+
+            deliveredIntent.putExtra("message_uri", messageUri == null ? "" : messageUri.toString());
+            deliveredIntent.putExtra(DELIVERED_SMS_BUNDLE, deliveredParcelable);
+            PendingIntent deliveredPI = PendingIntent.getBroadcast(
+                    context, messageId, deliveredIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+            ArrayList<PendingIntent> sPI = new ArrayList<PendingIntent>();
+            ArrayList<PendingIntent> dPI = new ArrayList<PendingIntent>();
+
+            String body = text;
+
+            // edit the body of the text if unicode needs to be stripped
+            if (settings.getStripUnicode()) {
+                body = StripAccents.stripAccents(body);
+            }
+
+            if (!settings.getPreText().equals("")) {
+                body = settings.getPreText() + " " + body;
+            }
+
+            SmsManager smsManager = SmsManagerFactory.createSmsManager(settings);
+            Log.v("send_transaction", "found sms manager");
+
+            if (settings.getSplit()) {
+                Log.v("send_transaction", "splitting message");
+                // figure out the length of supported message
+                int[] splitData = SmsMessage.calculateLength(body, false);
+
+                // we take the current length + the remaining length to get the total number of characters
+                // that message set can support, and then divide by the number of message that will require
+                // to get the length supported by a single message
+                int length = (body.length() + splitData[2]) / splitData[0];
+                Log.v("send_transaction", "length: " + length);
+
+                boolean counter = false;
+                if (settings.getSplitCounter() && body.length() > length) {
+                    counter = true;
+                    length -= 6;
                 }
 
-                Log.v("send_transaction", "saving message with thread id: " + threadId);
+                // get the split messages
+                String[] textToSend = splitByLength(body, length, counter);
 
-                values.put("thread_id", threadId);
-                messageUri = context.getContentResolver().insert(Uri.parse("content://sms/"), values);
+                // send each message part to each recipient attached to message
+                for (int j = 0; j < textToSend.length; j++) {
+                    ArrayList<String> parts = smsManager.divideMessage(textToSend[j]);
 
-                Log.v("send_transaction", "inserted to uri: " + messageUri);
-
-                Cursor query = context.getContentResolver().query(messageUri, new String[] {"_id"}, null, null, null);
-                if (query != null) {
-                    if (query.moveToFirst()) {
-                        messageId = query.getInt(0);
-                    }
-                    query.close();
-                }
-
-                Log.v("send_transaction", "message id: " + messageId);
-
-                // set up sent and delivered pending intents to be used with message request
-                Intent sentIntent;
-                if (explicitSentSmsReceiver == null) {
-                    sentIntent = new Intent(SMS_SENT);
-                    BroadcastUtils.addClassName(context, sentIntent, SMS_SENT);
-                } else {
-                    sentIntent = explicitSentSmsReceiver;
-                }
-
-                sentIntent.putExtra("message_uri", messageUri == null ? "" : messageUri.toString());
-                sentIntent.putExtra(SENT_SMS_BUNDLE, sentMessageParcelable);
-                PendingIntent sentPI = PendingIntent.getBroadcast(
-                        context, messageId, sentIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-                Intent deliveredIntent;
-                if (explicitDeliveredSmsReceiver == null) {
-                    deliveredIntent = new Intent(SMS_DELIVERED);
-                    BroadcastUtils.addClassName(context, deliveredIntent, SMS_DELIVERED);
-                } else {
-                    deliveredIntent = explicitDeliveredSmsReceiver;
-                }
-
-                deliveredIntent.putExtra("message_uri", messageUri == null ? "" : messageUri.toString());
-                deliveredIntent.putExtra(DELIVERED_SMS_BUNDLE, deliveredParcelable);
-                PendingIntent deliveredPI = PendingIntent.getBroadcast(
-                        context, messageId, deliveredIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-                ArrayList<PendingIntent> sPI = new ArrayList<PendingIntent>();
-                ArrayList<PendingIntent> dPI = new ArrayList<PendingIntent>();
-
-                String body = text;
-
-                // edit the body of the text if unicode needs to be stripped
-                if (settings.getStripUnicode()) {
-                    body = StripAccents.stripAccents(body);
-                }
-
-                if (!settings.getPreText().equals("")) {
-                    body = settings.getPreText() + " " + body;
-                }
-
-                SmsManager smsManager = SmsManagerFactory.createSmsManager(settings);
-                Log.v("send_transaction", "found sms manager");
-
-                if (settings.getSplit()) {
-                    Log.v("send_transaction", "splitting message");
-                    // figure out the length of supported message
-                    int[] splitData = SmsMessage.calculateLength(body, false);
-
-                    // we take the current length + the remaining length to get the total number of characters
-                    // that message set can support, and then divide by the number of message that will require
-                    // to get the length supported by a single message
-                    int length = (body.length() + splitData[2]) / splitData[0];
-                    Log.v("send_transaction", "length: " + length);
-
-                    boolean counter = false;
-                    if (settings.getSplitCounter() && body.length() > length) {
-                        counter = true;
-                        length -= 6;
-                    }
-
-                    // get the split messages
-                    String[] textToSend = splitByLength(body, length, counter);
-
-                    // send each message part to each recipient attached to message
-                    for (int j = 0; j < textToSend.length; j++) {
-                        ArrayList<String> parts = smsManager.divideMessage(textToSend[j]);
-
-                        for (int k = 0; k < parts.size(); k++) {
-                            sPI.add(saveMessage ? sentPI : null);
-                            dPI.add(settings.getDeliveryReports() && saveMessage ? deliveredPI : null);
-                        }
-
-                        Log.v("send_transaction", "sending split message");
-                        sendDelayedSms(smsManager, addresses[i], parts, sPI, dPI, delay, messageUri);
-                    }
-                } else {
-                    Log.v("send_transaction", "sending without splitting");
-                    // send the message normally without forcing anything to be split
-                    ArrayList<String> parts = smsManager.divideMessage(body);
-
-                    for (int j = 0; j < parts.size(); j++) {
+                    for (int k = 0; k < parts.size(); k++) {
                         sPI.add(saveMessage ? sentPI : null);
                         dPI.add(settings.getDeliveryReports() && saveMessage ? deliveredPI : null);
                     }
 
-                    if (Utils.isDefaultSmsApp(context)) {
+                    Log.v("send_transaction", "sending split message");
+                    sendDelayedSms(smsManager, address, parts, sPI, dPI, delay, messageUri);
+                }
+            } else {
+                Log.v("send_transaction", "sending without splitting");
+                // send the message normally without forcing anything to be split
+                ArrayList<String> parts = smsManager.divideMessage(body);
+
+                for (int j = 0; j < parts.size(); j++) {
+                    sPI.add(saveMessage ? sentPI : null);
+                    dPI.add(settings.getDeliveryReports() && saveMessage ? deliveredPI : null);
+                }
+
+                if (Utils.isDefaultSmsApp(context)) {
+                    try {
+                        Log.v("send_transaction", "sent message");
+                        sendDelayedSms(smsManager, address, parts, sPI, dPI, delay, messageUri);
+                    } catch (Exception e) {
+                        // whoops...
+                        Log.v("send_transaction", "error sending message");
+                        Log.e(TAG, "exception thrown", e);
+
                         try {
-                            Log.v("send_transaction", "sent message");
-                            sendDelayedSms(smsManager, addresses[i], parts, sPI, dPI, delay, messageUri);
-                        } catch (Exception e) {
-                            // whoops...
-                            Log.v("send_transaction", "error sending message");
-                            Log.e(TAG, "exception thrown", e);
+                            ((Activity) context).getWindow().getDecorView().findViewById(android.R.id.content).post(new Runnable() {
 
-                            try {
-                                ((Activity) context).getWindow().getDecorView().findViewById(android.R.id.content).post(new Runnable() {
-
-                                    @Override
-                                    public void run() {
-                                        Toast.makeText(context, "Message could not be sent", Toast.LENGTH_LONG).show();
-                                    }
-                                });
-                            } catch (Exception f) { }
+                                @Override
+                                public void run() {
+                                    Toast.makeText(context, "Message could not be sent", Toast.LENGTH_LONG).show();
+                                }
+                            });
+                        } catch (Exception f) {
                         }
-                    } else {
-                        // not default app, so just fire it off right away for the hell of it
-                        smsManager.sendMultipartTextMessage(addresses[i], null, parts, sPI, dPI);
                     }
+                } else {
+                    // not default app, so just fire it off right away for the hell of it
+                    smsManager.sendMultipartTextMessage(address, null, parts, sPI, dPI);
                 }
             }
         }
@@ -523,7 +550,7 @@ public class Transaction {
 
     public static MessageInfo getBytes(Context context, boolean saveMessage, String fromAddress,
                                        String[] recipients, MMSPart[] parts, String subject)
-                throws MmsException {
+            throws MmsException {
         final SendReq sendRequest = new SendReq();
 
         // create send request addresses
