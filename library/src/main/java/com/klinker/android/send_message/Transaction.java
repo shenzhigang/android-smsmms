@@ -18,7 +18,12 @@ package com.klinker.android.send_message;
 
 import android.app.Activity;
 import android.app.PendingIntent;
-import android.content.*;
+import android.content.BroadcastReceiver;
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.net.Uri;
@@ -30,22 +35,32 @@ import android.provider.Telephony;
 import android.telephony.SmsManager;
 import android.telephony.SmsMessage;
 import android.text.TextUtils;
+import android.widget.Toast;
 
 import com.android.mms.MmsConfig;
+import com.android.mms.dom.smil.parser.SmilXmlSerializer;
 import com.android.mms.service_alt.MmsNetworkManager;
 import com.android.mms.service_alt.MmsRequestManager;
 import com.android.mms.service_alt.SendRequest;
-import com.google.android.mms.util_alt.SqliteWrapper;
-import com.klinker.android.logger.Log;
-import android.widget.Toast;
-import com.android.mms.dom.smil.parser.SmilXmlSerializer;
 import com.android.mms.transaction.MmsMessageSender;
 import com.android.mms.transaction.ProgressCallbackEntity;
 import com.android.mms.util.DownloadManager;
 import com.android.mms.util.RateController;
-import com.google.android.mms.*;
-import com.google.android.mms.pdu_alt.*;
+import com.google.android.mms.ContentType;
+import com.google.android.mms.InvalidHeaderValueException;
+import com.google.android.mms.MMSPart;
+import com.google.android.mms.MmsException;
+import com.google.android.mms.pdu_alt.CharacterSets;
+import com.google.android.mms.pdu_alt.EncodedStringValue;
+import com.google.android.mms.pdu_alt.PduBody;
+import com.google.android.mms.pdu_alt.PduComposer;
+import com.google.android.mms.pdu_alt.PduHeaders;
+import com.google.android.mms.pdu_alt.PduPart;
+import com.google.android.mms.pdu_alt.PduPersister;
+import com.google.android.mms.pdu_alt.SendReq;
 import com.google.android.mms.smil.SmilHelper;
+import com.google.android.mms.util_alt.SqliteWrapper;
+import com.klinker.android.logger.Log;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -53,7 +68,13 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
 
 /**
  * Class to process transaction requests for sending
@@ -85,6 +106,8 @@ public class Transaction {
     public static final String NOTIFY_OF_MMS = "com.klinker.android.messaging.NEW_MMS_DOWNLOADED";
 
     public static final long NO_THREAD_ID = 0;
+
+    public static final String ADDRESS_SEPARATOR = "|";
 
     /**
      * Sets context and initializes settings to default values
@@ -140,7 +163,10 @@ public class Transaction {
         //
         // then, send as MMS, else send as Voice or SMS
         if (checkMMS(message)) {
-            try { Looper.prepare(); } catch (Exception e) { }
+            try {
+                Looper.prepare();
+            } catch (Exception e) {
+            }
             RateController.init(context);
             DownloadManager.init(context);
 
@@ -166,7 +192,7 @@ public class Transaction {
 
             if (addresses.length > 1) {
                 // add a dummy message for this thread if it is a group message
-                String mergedAddresses = TextUtils.join(" ", addresses);
+                String mergedAddresses = TextUtils.join(ADDRESS_SEPARATOR, addresses);
                 long broadCastThreadId = Utils.getOrCreateThreadId(context, new HashSet<>(Arrays.asList(addresses)));
                 sendSmsMessage(text, mergedAddresses, broadCastThreadId, message.getDelay(),
                         sentMessageParcelable, deliveredParcelable);
@@ -181,7 +207,7 @@ public class Transaction {
      * Called to send a new message depending on settings and provided Message object
      * If you want to send message as mms, call this from the UI thread
      *
-     * @param message  is the message that you want to send
+     * @param message is the message that you want to send
      */
     public void sendNewMessage(Message message) {
         this.sendNewMessage(message, new Bundle(), new Bundle());
@@ -404,7 +430,8 @@ public class Transaction {
             public void run() {
                 try {
                     Thread.sleep(delay);
-                } catch (Exception e) { }
+                } catch (Exception e) {
+                }
 
                 if (checkIfMessageExistsAfterDelay(messageUri)) {
                     Log.v("send_transaction", "message sent after delay");
@@ -421,7 +448,7 @@ public class Transaction {
     }
 
     private boolean checkIfMessageExistsAfterDelay(Uri messageUti) {
-        Cursor query = context.getContentResolver().query(messageUti, new String[] {"_id"}, null, null, null);
+        Cursor query = context.getContentResolver().query(messageUti, new String[]{"_id"}, null, null, null);
         if (query != null && query.moveToFirst()) {
             query.close();
             return true;
@@ -654,7 +681,7 @@ public class Transaction {
         }
 
         try {
-            Cursor query = context.getContentResolver().query(info.location, new String[] {"thread_id"}, null, null, null);
+            Cursor query = context.getContentResolver().query(info.location, new String[]{"thread_id"}, null, null, null);
             if (query != null && query.moveToFirst()) {
                 info.token = query.getLong(query.getColumnIndex("thread_id"));
                 query.close();
@@ -806,7 +833,8 @@ public class Transaction {
             req.setDeliveryReport(PduHeaders.VALUE_NO);
             // Read report
             req.setReadReport(PduHeaders.VALUE_NO);
-        } catch (InvalidHeaderValueException e) {}
+        } catch (InvalidHeaderValueException e) {
+        }
 
         return req;
     }
