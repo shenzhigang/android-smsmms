@@ -59,7 +59,6 @@ public class Utils {
         return mTelephonyMgr.getLine1Number();
     }
 
-
     public static String getMyPhoneNumberFromSubscription(Context context, int subscriptionId) {
         if (DEFAULT_SUBSCRIPTION_ID == subscriptionId) {
             return getMyPhoneNumber(context);
