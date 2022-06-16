@@ -16,6 +16,8 @@
 
 package com.klinker.android.send_message;
 
+import static com.klinker.android.send_message.Transaction.getAddressSeparator;
+
 import android.graphics.Bitmap;
 import android.net.Uri;
 
@@ -37,6 +39,7 @@ public class Message {
         private byte[] media;
         private String contentType;
         private String name;
+
         public Part(byte[] media, String contentType, String name) {
             this.media = media;
             this.contentType = contentType;
@@ -55,6 +58,7 @@ public class Message {
             return name;
         }
     }
+
     private String text;
     private String subject;
     private String fromAddress;
@@ -80,7 +84,7 @@ public class Message {
      * @param address is the phone number to send to
      */
     public Message(String text, String address) {
-        this(text, address.trim().split(" "));
+        this(text, address.trim().split(getAddressSeparator()));
     }
 
     /**
@@ -91,7 +95,7 @@ public class Message {
      * @param subject is the subject of the mms message
      */
     public Message(String text, String address, String subject) {
-        this(text, address.trim().split(" "), subject);
+        this(text, address.trim().split(getAddressSeparator()), subject);
     }
 
     /**
@@ -133,7 +137,7 @@ public class Message {
      * @param image   is the image that you want to send
      */
     public Message(String text, String address, Bitmap image) {
-        this(text, address.trim().split(" "), new Bitmap[]{image});
+        this(text, address.trim().split(getAddressSeparator()), new Bitmap[]{image});
     }
 
     /**
@@ -145,7 +149,7 @@ public class Message {
      * @param subject is the subject of the mms message
      */
     public Message(String text, String address, Bitmap image, String subject) {
-        this(text, address.trim().split(" "), new Bitmap[]{image}, subject);
+        this(text, address.trim().split(getAddressSeparator()), new Bitmap[]{image}, subject);
     }
 
     /**
@@ -179,7 +183,7 @@ public class Message {
      * @param images  is an array of images that you want to send
      */
     public Message(String text, String address, Bitmap[] images) {
-        this(text, address.trim().split(" "), images);
+        this(text, address.trim().split(getAddressSeparator()), images);
     }
 
     /**
@@ -191,7 +195,7 @@ public class Message {
      * @param subject is the subject of the mms message
      */
     public Message(String text, String address, Bitmap[] images, String subject) {
-        this(text, address.trim().split(" "), images, subject);
+        this(text, address.trim().split(getAddressSeparator()), images, subject);
     }
 
     /**
@@ -247,6 +251,7 @@ public class Message {
 
     /**
      * sets from address info
+     *
      * @param fromAddress from address
      */
     public void setFromAddress(String fromAddress) {
@@ -314,7 +319,7 @@ public class Message {
      * Sets audio file.  Must be in wav format.
      *
      * @param audio is the single audio sample to send to recipient
-     * @param name is the name of the file
+     * @param name  is the name of the file
      */
     public void addAudio(byte[] audio, String name) {
         addMedia(audio, "audio/wav", name);
@@ -343,7 +348,7 @@ public class Message {
      * Adds video file
      *
      * @param video is the single video sample to send to recipient
-     * @param name is the name of the video file
+     * @param name  is the name of the video file
      */
     public void addVideo(byte[] video, String name) {
         addMedia(video, "video/3gpp", name);
@@ -352,18 +357,18 @@ public class Message {
     /**
      * Sets other media
      *
-     * @param media is the media you want to send
+     * @param media    is the media you want to send
      * @param mimeType is the mimeType of the media
      */
     @Deprecated
     public void setMedia(byte[] media, String mimeType) {
-         addMedia(media, mimeType);
+        addMedia(media, mimeType);
     }
 
     /**
      * Adds other media
      *
-     * @param media is the media you want to send
+     * @param media    is the media you want to send
      * @param mimeType is the mimeType of the media
      */
     public void addMedia(byte[] media, String mimeType) {
@@ -373,9 +378,9 @@ public class Message {
     /**
      * Adds other media
      *
-     * @param media is the media you want to send
+     * @param media    is the media you want to send
      * @param mimeType is the mimetype of the media
-     * @param name is the name of the file
+     * @param name     is the name of the file
      */
     public void addMedia(byte[] media, String mimeType, String name) {
         this.parts.add(new Part(media, mimeType, name));
@@ -462,6 +467,7 @@ public class Message {
 
     /**
      * Gets the from address of the message
+     *
      * @return the string of the from address
      */
     public String getFromAddress() {
@@ -538,21 +544,22 @@ public class Message {
      * @return a byte array of the image data
      */
     public static byte[] bitmapToByteArray(Bitmap image) {
-		byte[] output = new byte[0];
+        byte[] output = new byte[0];
         if (image == null) {
             Log.v("Message", "image is null, returning byte array of size 0");
             return output;
         }
-		ByteArrayOutputStream stream = new ByteArrayOutputStream();
-		try {
-			image.compress(Bitmap.CompressFormat.JPEG, 90, stream);
-			output = stream.toByteArray();
-		} finally {
-			try {
-				stream.close();
-			} catch (IOException e) {}
-		}
-		return output;
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        try {
+            image.compress(Bitmap.CompressFormat.JPEG, 90, stream);
+            output = stream.toByteArray();
+        } finally {
+            try {
+                stream.close();
+            } catch (IOException e) {
+            }
+        }
+        return output;
     }
 
     /**

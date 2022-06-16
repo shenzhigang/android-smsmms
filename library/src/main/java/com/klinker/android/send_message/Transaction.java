@@ -107,8 +107,6 @@ public class Transaction {
 
     public static final long NO_THREAD_ID = 0;
 
-    public static final String ADDRESS_SEPARATOR = "|";
-
     /**
      * Sets context and initializes settings to default values
      *
@@ -192,7 +190,7 @@ public class Transaction {
 
             if (addresses.length > 1) {
                 // add a dummy message for this thread if it is a group message
-                String mergedAddresses = TextUtils.join(ADDRESS_SEPARATOR, addresses);
+                String mergedAddresses = TextUtils.join(getAddressSeparator(), addresses);
                 long broadCastThreadId = Utils.getOrCreateThreadId(context, new HashSet<>(Arrays.asList(addresses)));
                 sendSmsMessage(text, mergedAddresses, broadCastThreadId, message.getDelay(),
                         sentMessageParcelable, deliveredParcelable);
@@ -463,7 +461,7 @@ public class Transaction {
         String address = "";
 
         for (int i = 0; i < addresses.length; i++) {
-            address += addresses[i] + " ";
+            address += addresses[i] + getAddressSeparator();
         }
 
         address = address.trim();
@@ -511,7 +509,7 @@ public class Transaction {
             MessageInfo info = null;
 
             try {
-                info = getBytes(context, saveMessage, fromAddress, address.split(" "),
+                info = getBytes(context, saveMessage, fromAddress, address.split(getAddressSeparator()),
                         data.toArray(new MMSPart[data.size()]), subject);
                 MmsMessageSender sender = new MmsMessageSender(context, info.location, info.bytes.length);
                 sender.sendMessage(info.token);
@@ -561,7 +559,7 @@ public class Transaction {
                 sendMmsThroughSystem(context, subject, data, fromAddress, addresses, explicitSentMmsReceiver, save, messageUri);
             } else {
                 try {
-                    MessageInfo info = getBytes(context, saveMessage, fromAddress, address.split(" "),
+                    MessageInfo info = getBytes(context, saveMessage, fromAddress, address.split(getAddressSeparator()),
                             data.toArray(new MMSPart[data.size()]), subject);
                     MmsRequestManager requestManager = new MmsRequestManager(context, info.bytes);
                     SendRequest request = new SendRequest(requestManager, Utils.getDefaultSubscriptionId(),
@@ -1026,4 +1024,7 @@ public class Transaction {
                 message.getSubject() != null;
     }
 
+    public static String getAddressSeparator() {
+        return "\\|";
+    }
 }
