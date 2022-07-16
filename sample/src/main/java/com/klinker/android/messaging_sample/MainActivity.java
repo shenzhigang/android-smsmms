@@ -30,6 +30,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import com.klinker.android.logger.Log;
 import com.klinker.android.logger.OnLogListener;
@@ -197,7 +198,13 @@ public class MainActivity extends Activity {
                     message.setImage(BitmapFactory.decodeResource(getResources(), R.drawable.android));
                 }
 
-                transaction.sendNewMessage(message);
+                try {
+                    transaction.sendNewMessage(message);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    String msg = e.getLocalizedMessage() != null ? e.getLocalizedMessage() : "Failed to send message";
+                    Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show();
+                }
             }
         }).start();
     }
