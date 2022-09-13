@@ -8,13 +8,10 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.database.Cursor;
-import android.database.sqlite.SqliteWrapper;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
-import android.provider.Telephony;
 import android.telephony.SmsManager;
 import android.text.TextUtils;
 
@@ -72,8 +69,12 @@ public class DownloadManager {
         download.putExtra(MmsReceivedReceiver.EXTRA_TRIGGER_PUSH, byPush);
         download.putExtra(MmsReceivedReceiver.EXTRA_URI, uri);
         download.putExtra(MmsReceivedReceiver.SUBSCRIPTION_ID, subscriptionId);
+        int flags = PendingIntent.FLAG_CANCEL_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            flags = flags | PendingIntent.FLAG_IMMUTABLE;
+        }
         final PendingIntent pendingIntent = PendingIntent.getBroadcast(
-                context, 0, download, PendingIntent.FLAG_CANCEL_CURRENT);
+                context, 0, download, flags);
 
         final SmsManager smsManager = SmsManagerFactory.createSmsManager(subscriptionId);
 
@@ -108,7 +109,7 @@ public class DownloadManager {
         public void onReceive(Context context, Intent intent) {
             context.unregisterReceiver(this);
 
-            PowerManager pm = (PowerManager)context.getSystemService(Context.POWER_SERVICE);
+            PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
             PowerManager.WakeLock wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "smsmms:download-mms-lock");
             wakeLock.acquire(60 * 1000);
 
