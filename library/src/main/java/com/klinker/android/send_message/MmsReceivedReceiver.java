@@ -16,12 +16,13 @@
 
 package com.klinker.android.send_message;
 
+import static com.google.android.mms.pdu_alt.PduHeaders.STATUS_RETRIEVED;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.AsyncTask;
-import android.os.Build;
 import android.provider.Telephony;
 import android.telephony.SmsManager;
 import android.util.Log;
@@ -54,8 +55,6 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static com.google.android.mms.pdu_alt.PduHeaders.STATUS_RETRIEVED;
-
 public abstract class MmsReceivedReceiver extends BroadcastReceiver {
     private static final String TAG = "MmsReceivedReceiver";
 
@@ -72,6 +71,7 @@ public abstract class MmsReceivedReceiver extends BroadcastReceiver {
     private static final ExecutorService RECEIVE_NOTIFICATION_EXECUTOR = Executors.newSingleThreadExecutor();
 
     public abstract void onMessageReceived(Context context, Uri messageUri);
+
     public abstract void onError(Context context, String error);
 
     public MmscInformation getMmscInfoForReceptionAck() {
@@ -92,81 +92,76 @@ public abstract class MmsReceivedReceiver extends BroadcastReceiver {
         final int subscriptionId = intent.getIntExtra(SUBSCRIPTION_ID, Utils.getDefaultSubscriptionId());
         Log.v(TAG, path);
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                FileInputStream reader = null;
-                Uri messageUri = null;
-                String errorMessage = null;
+        new Thread(() -> {
+            FileInputStream reader = null;
+            Uri messageUri = null;
+            String errorMessage = null;
 
-                try {
-                    File mDownloadFile = new File(path);
-                    final int nBytes = (int) mDownloadFile.length();
-                    reader = new FileInputStream(mDownloadFile);
-                    final byte[] response = new byte[nBytes];
-                    reader.read(response, 0, nBytes);
+            try {
+                File mDownloadFile = new File(path);
+                final int nBytes = (int) mDownloadFile.length();
+                reader = new FileInputStream(mDownloadFile);
+                final byte[] response = new byte[nBytes];
+                reader.read(response, 0, nBytes);
 
-                    List<CommonAsyncTask> tasks = getNotificationTask(context, intent, response);
+                List<CommonAsyncTask> tasks = getNotificationTask(context, intent, response);
 
-                    messageUri = DownloadRequest.persist(context, response,
-                            new MmsConfig.Overridden(new MmsConfig(context), null),
-                            intent.getStringExtra(EXTRA_LOCATION_URL),
-                            subscriptionId, null);
+                messageUri = DownloadRequest.persist(context, response,
+                        new MmsConfig.Overridden(new MmsConfig(context), null),
+                        intent.getStringExtra(EXTRA_LOCATION_URL),
+                        subscriptionId, null);
 
-                    Log.v(TAG, "response saved successfully");
-                    Log.v(TAG, "response length: " + response.length);
-                    mDownloadFile.delete();
+                Log.v(TAG, "response saved successfully");
+                Log.v(TAG, "response length: " + response.length);
+                mDownloadFile.delete();
 
-                    if (tasks != null) {
-                        Log.v(TAG, "running the common async notifier for download");
-                        for (CommonAsyncTask task : tasks)
-                            task.executeOnExecutor(RECEIVE_NOTIFICATION_EXECUTOR);
-                    }
-                } catch (FileNotFoundException e) {
-                    errorMessage = "MMS received, file not found exception";
-                    Log.e(TAG, errorMessage, e);
-                } catch (IOException e) {
-                    errorMessage = "MMS received, io exception";
-                    Log.e(TAG, errorMessage, e);
-                } finally {
-                    if (reader != null) {
-                        try {
-                            reader.close();
-                        } catch (IOException e) {
-                            errorMessage = "MMS received, io exception";
-                            Log.e(TAG, "MMS received, io exception", e);
-                        }
+                if (tasks != null) {
+                    Log.v(TAG, "running the common async notifier for download");
+                    for (CommonAsyncTask task : tasks)
+                        task.executeOnExecutor(RECEIVE_NOTIFICATION_EXECUTOR);
+                }
+            } catch (FileNotFoundException e) {
+                errorMessage = "MMS received, file not found exception";
+                Log.e(TAG, errorMessage, e);
+            } catch (IOException e) {
+                errorMessage = "MMS received, io exception";
+                Log.e(TAG, errorMessage, e);
+            } finally {
+                if (reader != null) {
+                    try {
+                        reader.close();
+                    } catch (IOException e) {
+                        errorMessage = "MMS received, io exception";
+                        Log.e(TAG, "MMS received, io exception", e);
                     }
                 }
+            }
 
-                handleHttpError(context, intent);
-                DownloadManager.finishDownload(intent.getStringExtra(EXTRA_LOCATION_URL));
+            handleHttpError(context, intent);
+            DownloadManager.finishDownload(intent.getStringExtra(EXTRA_LOCATION_URL));
 
-                if (messageUri != null) {
-                    onMessageReceived(context, messageUri);
-                }
+            if (messageUri != null) {
+                onMessageReceived(context, messageUri);
+            }
 
-                if (errorMessage != null) {
-                    onError(context, errorMessage);
-                }
+            if (errorMessage != null) {
+                onError(context, errorMessage);
             }
         }).start();
     }
 
     private void handleHttpError(Context context, Intent intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
-            final int httpError = intent.getIntExtra(SmsManager.EXTRA_MMS_HTTP_STATUS, 0);
-            if (httpError == 404 || httpError == 400) {
-                // Delete the corresponding NotificationInd
-                SqliteWrapper.delete(context,
-                        context.getContentResolver(),
-                        Telephony.Mms.CONTENT_URI,
-                        LOCATION_SELECTION,
-                        new String[]{
-                                Integer.toString(PduHeaders.MESSAGE_TYPE_NOTIFICATION_IND),
-                                intent.getStringExtra(EXTRA_LOCATION_URL)
-                        });
-            }
+        final int httpError = intent.getIntExtra(SmsManager.EXTRA_MMS_HTTP_STATUS, 0);
+        if (httpError == 404 || httpError == 400) {
+            // Delete the corresponding NotificationInd
+            SqliteWrapper.delete(context,
+                    context.getContentResolver(),
+                    Telephony.Mms.CONTENT_URI,
+                    LOCATION_SELECTION,
+                    new String[]{
+                            Integer.toString(PduHeaders.MESSAGE_TYPE_NOTIFICATION_IND),
+                            intent.getStringExtra(EXTRA_LOCATION_URL)
+                    });
         }
     }
 
@@ -190,12 +185,12 @@ public abstract class MmsReceivedReceiver extends BroadcastReceiver {
         /**
          * A common method to send a PDU to MMSC.
          *
-         * @param pdu A byte array which contains the data of the PDU.
+         * @param pdu     A byte array which contains the data of the PDU.
          * @param mmscUrl Url of the recipient MMSC.
          * @return A byte array which contains the response data.
-         *         If an HTTP error code is returned, an IOException will be thrown.
-         * @throws java.io.IOException if any error occurred on network interface or
-         *         an HTTP error code(>=400) returned from the server.
+         * If an HTTP error code is returned, an IOException will be thrown.
+         * @throws java.io.IOException                 if any error occurred on network interface or
+         *                                             an HTTP error code(>=400) returned from the server.
          * @throws com.google.android.mms.MmsException if pdu is null.
          */
         byte[] sendPdu(byte[] pdu, String mmscUrl) throws IOException, MmsException {
@@ -207,9 +202,9 @@ public abstract class MmsReceivedReceiver extends BroadcastReceiver {
          *
          * @param pdu A byte array which contains the data of the PDU.
          * @return A byte array which contains the response data.
-         *         If an HTTP error code is returned, an IOException will be thrown.
-         * @throws java.io.IOException if any error occurred on network interface or
-         *         an HTTP error code(>=400) returned from the server.
+         * If an HTTP error code is returned, an IOException will be thrown.
+         * @throws java.io.IOException                 if any error occurred on network interface or
+         *                                             an HTTP error code(>=400) returned from the server.
          * @throws com.google.android.mms.MmsException if pdu is null.
          */
         byte[] sendPdu(byte[] pdu) throws IOException, MmsException {
@@ -220,17 +215,17 @@ public abstract class MmsReceivedReceiver extends BroadcastReceiver {
         /**
          * A common method to send a PDU to MMSC.
          *
-         * @param token The token to identify the sending progress.
-         * @param pdu A byte array which contains the data of the PDU.
+         * @param token   The token to identify the sending progress.
+         * @param pdu     A byte array which contains the data of the PDU.
          * @param mmscUrl Url of the recipient MMSC.
          * @return A byte array which contains the response data.
-         *         If an HTTP error code is returned, an IOException will be thrown.
-         * @throws java.io.IOException if any error occurred on network interface or
-         *         an HTTP error code(>=400) returned from the server.
+         * If an HTTP error code is returned, an IOException will be thrown.
+         * @throws java.io.IOException                 if any error occurred on network interface or
+         *                                             an HTTP error code(>=400) returned from the server.
          * @throws com.google.android.mms.MmsException if pdu is null.
          */
         private byte[] sendPdu(long token, byte[] pdu,
-                       String mmscUrl) throws IOException, MmsException {
+                               String mmscUrl) throws IOException, MmsException {
             if (pdu == null) {
                 throw new MmsException();
             }
@@ -274,7 +269,7 @@ public abstract class MmsReceivedReceiver extends BroadcastReceiver {
                         STATUS_RETRIEVED);
 
                 // Pack M-NotifyResp.ind and send it
-                if(com.android.mms.MmsConfig.getNotifyWapMMSC()) {
+                if (com.android.mms.MmsConfig.getNotifyWapMMSC()) {
                     sendPdu(new PduComposer(mContext, notifyRespInd).make(), mContentLocation);
                 } else {
                     sendPdu(new PduComposer(mContext, notifyRespInd).make());
@@ -321,7 +316,7 @@ public abstract class MmsReceivedReceiver extends BroadcastReceiver {
                     }
 
                     // Pack M-Acknowledge.ind and send it
-                    if(com.android.mms.MmsConfig.getNotifyWapMMSC()) {
+                    if (com.android.mms.MmsConfig.getNotifyWapMMSC()) {
                         sendPdu(new PduComposer(mContext, acknowledgeInd).make(), mContentLocation);
                     } else {
                         sendPdu(new PduComposer(mContext, acknowledgeInd).make());
@@ -352,7 +347,7 @@ public abstract class MmsReceivedReceiver extends BroadcastReceiver {
         final GenericPdu pdu =
                 (new PduParser(response, new MmsConfig.Overridden(new MmsConfig(context), null).
                         getSupportMmsContentDisposition())).parse();
-        if (pdu == null || !(pdu instanceof RetrieveConf)) {
+        if (!(pdu instanceof RetrieveConf)) {
             android.util.Log.e(TAG, "MmsReceivedReceiver.sendNotification failed to parse pdu");
             return null;
         }

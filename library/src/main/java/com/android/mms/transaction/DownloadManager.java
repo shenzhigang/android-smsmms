@@ -1,7 +1,6 @@
 
 package com.android.mms.transaction;
 
-import android.annotation.TargetApi;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
@@ -43,7 +42,6 @@ public class DownloadManager {
 
     }
 
-    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     public void downloadMultimediaMessage(final Context context, final String location, Uri uri, boolean byPush, int subscriptionId) {
         if (location == null || mMap.get(location) != null) {
             return;
