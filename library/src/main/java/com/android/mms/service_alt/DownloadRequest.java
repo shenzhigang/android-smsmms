@@ -49,20 +49,20 @@ public class DownloadRequest extends MmsRequest {
     private static final String LOCATION_SELECTION =
             Telephony.Mms.MESSAGE_TYPE + "=? AND " + Telephony.Mms.CONTENT_LOCATION + " =?";
 
-    static final String[] PROJECTION = new String[] {
+    static final String[] PROJECTION = new String[]{
             Telephony.Mms.CONTENT_LOCATION
     };
 
     // The indexes of the columns which must be consistent with above PROJECTION.
-    static final int COLUMN_CONTENT_LOCATION      = 0;
+    static final int COLUMN_CONTENT_LOCATION = 0;
 
     private final String mLocationUrl;
     private final PendingIntent mDownloadedIntent;
     private final Uri mContentUri;
 
     public DownloadRequest(RequestManager manager, int subId, String locationUrl,
-            Uri contentUri, PendingIntent downloadedIntent, String creator,
-            Bundle configOverrides, Context context) throws MmsException {
+                           Uri contentUri, PendingIntent downloadedIntent, String creator,
+                           Bundle configOverrides, Context context) throws MmsException {
         super(manager, subId, creator, configOverrides);
 
         if (locationUrl == null) {
@@ -140,7 +140,7 @@ public class DownloadRequest extends MmsRequest {
         try {
             final GenericPdu pdu =
                     (new PduParser(response, mmsConfig.getSupportMmsContentDisposition())).parse();
-            if (pdu == null || !(pdu instanceof RetrieveConf)) {
+            if (!(pdu instanceof RetrieveConf)) {
                 Log.e(TAG, "DownloadRequest.persistIfRequired: invalid parsed PDU");
 
                 // Update the error type of the NotificationInd
@@ -183,6 +183,7 @@ public class DownloadRequest extends MmsRequest {
             // Update some of the properties of the message
             final ContentValues values = new ContentValues();
             values.put(Telephony.Mms.DATE, System.currentTimeMillis() / 1000L);
+            values.put(Telephony.Mms.CONTENT_LOCATION, locationUrl);
             values.put(Telephony.Mms.READ, 0);
             values.put(Telephony.Mms.SEEN, 0);
             if (!TextUtils.isEmpty(creator)) {
@@ -292,7 +293,7 @@ public class DownloadRequest extends MmsRequest {
     /**
      * Transfer the received response to the caller (for download requests write to content uri)
      *
-     * @param fillIn the intent that will be returned to the caller
+     * @param fillIn   the intent that will be returned to the caller
      * @param response the pdu to transfer
      */
     @Override
@@ -308,7 +309,7 @@ public class DownloadRequest extends MmsRequest {
     /**
      * Try downloading via the carrier app.
      *
-     * @param context The context
+     * @param context                        The context
      * @param carrierMessagingServicePackage The carrier messaging service handling the download
      */
     public void tryDownloadingByCarrierApp(Context context, String carrierMessagingServicePackage) {
@@ -346,10 +347,10 @@ public class DownloadRequest extends MmsRequest {
 
     private static Long getId(Context context, String location) {
         String selection = Telephony.Mms.CONTENT_LOCATION + " = ?";
-        String[] selectionArgs = new String[] { location };
+        String[] selectionArgs = new String[]{location};
         Cursor c = android.database.sqlite.SqliteWrapper.query(
                 context, context.getContentResolver(),
-                Telephony.Mms.CONTENT_URI, new String[] { Telephony.Mms._ID },
+                Telephony.Mms.CONTENT_URI, new String[]{Telephony.Mms._ID},
                 selection, selectionArgs, null);
         if (c != null) {
             try {
