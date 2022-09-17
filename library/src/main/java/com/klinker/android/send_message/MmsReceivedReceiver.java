@@ -19,6 +19,7 @@ package com.klinker.android.send_message;
 import static com.google.android.mms.pdu_alt.PduHeaders.STATUS_RETRIEVED;
 
 import android.content.BroadcastReceiver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -70,6 +71,11 @@ public abstract class MmsReceivedReceiver extends BroadcastReceiver {
 
     private static final ExecutorService RECEIVE_NOTIFICATION_EXECUTOR = Executors.newSingleThreadExecutor();
 
+    public boolean isAddressBlocked(Context context, String address) {
+        // Subclasses can override this to screen messages.
+        return false;
+    }
+
     public abstract void onMessageReceived(Context context, Uri messageUri);
 
     public abstract void onError(Context context, String error);
@@ -90,6 +96,7 @@ public abstract class MmsReceivedReceiver extends BroadcastReceiver {
 
         final String path = intent.getStringExtra(EXTRA_FILE_PATH);
         final int subscriptionId = intent.getIntExtra(SUBSCRIPTION_ID, Utils.getDefaultSubscriptionId());
+        final String locationUrl = intent.getStringExtra(EXTRA_LOCATION_URL);
         Log.v(TAG, path);
 
         new Thread(() -> {
@@ -104,12 +111,17 @@ public abstract class MmsReceivedReceiver extends BroadcastReceiver {
                 final byte[] response = new byte[nBytes];
                 reader.read(response, 0, nBytes);
 
-                List<CommonAsyncTask> tasks = getNotificationTask(context, intent, response);
+                final MmsConfig.Overridden mmsConfig = new MmsConfig.Overridden(new MmsConfig(context), null);
+                final String address = parseSenderAddressFromPdu(context, response, locationUrl, mmsConfig);
+                if (isAddressBlocked(context, address)) {
+                    // Update the retrieve status of the NotificationInd to permanent failure.
+                    updateNotificationIndRetrieveStatus(context, locationUrl, PduHeaders.RETRIEVE_STATUS_ERROR_PERMANENT_FAILURE);
+                    return;
+                }
 
-                messageUri = DownloadRequest.persist(context, response,
-                        new MmsConfig.Overridden(new MmsConfig(context), null),
-                        intent.getStringExtra(EXTRA_LOCATION_URL),
-                        subscriptionId, null);
+                List<CommonAsyncTask> tasks = getNotificationTask(context, intent, response);
+                messageUri = DownloadRequest.persist(context, response, mmsConfig,
+                        intent.getStringExtra(EXTRA_LOCATION_URL), subscriptionId, null);
 
                 Log.v(TAG, "response saved successfully");
                 Log.v(TAG, "response length: " + response.length);
@@ -148,6 +160,34 @@ public abstract class MmsReceivedReceiver extends BroadcastReceiver {
                 onError(context, errorMessage);
             }
         }).start();
+    }
+
+    private String parseSenderAddressFromPdu(Context context, byte[] data, String locationUrl, MmsConfig.Overridden mmsConfig) {
+        if (data == null || data.length < 1) {
+            // Update the retrieve status of the NotificationInd
+            updateNotificationIndRetrieveStatus(context, locationUrl, PduHeaders.RETRIEVE_STATUS_ERROR_END);
+            return null;
+        }
+        final GenericPdu pdu = new PduParser(data, mmsConfig.getSupportMmsContentDisposition()).parse();
+        if (!(pdu instanceof RetrieveConf)) {
+            return null;
+        }
+        return pdu.getFrom().getString();
+    }
+
+    private void updateNotificationIndRetrieveStatus(Context context, String locationUrl, int retrieveStatus) {
+        final ContentValues values = new ContentValues(1);
+        values.put(Telephony.Mms.RETRIEVE_STATUS, retrieveStatus);
+        SqliteWrapper.update(
+                context,
+                context.getContentResolver(),
+                Telephony.Mms.CONTENT_URI,
+                values,
+                LOCATION_SELECTION,
+                new String[]{
+                        Integer.toString(PduHeaders.MESSAGE_TYPE_NOTIFICATION_IND),
+                        locationUrl
+                });
     }
 
     private void handleHttpError(Context context, Intent intent) {
