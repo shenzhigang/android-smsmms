@@ -114,8 +114,15 @@ public abstract class MmsReceivedReceiver extends BroadcastReceiver {
                 final MmsConfig.Overridden mmsConfig = new MmsConfig.Overridden(new MmsConfig(context), null);
                 final String address = parseSenderAddressFromPdu(context, response, locationUrl, mmsConfig);
                 if (isAddressBlocked(context, address)) {
-                    // Update the retrieve status of the NotificationInd to permanent failure.
-                    updateNotificationIndRetrieveStatus(context, locationUrl, PduHeaders.RETRIEVE_STATUS_ERROR_PERMANENT_FAILURE);
+                    // Delete the corresponding NotificationInd.
+                    SqliteWrapper.delete(context,
+                            context.getContentResolver(),
+                            Telephony.Mms.CONTENT_URI,
+                            LOCATION_SELECTION,
+                            new String[]{
+                                    Integer.toString(PduHeaders.MESSAGE_TYPE_NOTIFICATION_IND),
+                                    locationUrl
+                            });
                     return;
                 }
 
