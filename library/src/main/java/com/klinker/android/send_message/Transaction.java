@@ -87,6 +87,7 @@ public class Transaction {
     private Intent explicitDeliveredSmsReceiver;
 
     private boolean saveMessage = true;
+    private int subscription_id = 0;
 
     public String SMS_SENT = ".SMS_SENT";
     public String SMS_DELIVERED = ".SMS_DELIVERED";
@@ -283,6 +284,7 @@ public class Transaction {
             values.put("date", cal.getTimeInMillis() + "");
             values.put("read", 1);
             values.put("type", 4);
+            values.put("sub_id", subscription_id);
 
             Log.v("send_transaction", "saving message with thread id: " + threadId);
 
@@ -506,6 +508,10 @@ public class Transaction {
                 throw e;
             }
         }
+    }
+
+    public void setSubscriptionId(int subscriptionId) {
+        this.subscription_id = subscriptionId;
     }
 
     public static MessageInfo getBytes(Context context, boolean saveMessage, String fromAddress,
