@@ -497,7 +497,7 @@ public class Transaction {
         } else {
             try {
                 MessageInfo info = getBytes(context, saveMessage, fromAddress, address.split(getAddressSeparator()),
-                        data.toArray(new MMSPart[data.size()]), subject);
+                        data.toArray(new MMSPart[data.size()]), subject, this.subscription_id);
                 MmsRequestManager requestManager = new MmsRequestManager(context, info.bytes);
                 SendRequest request = new SendRequest(requestManager, Utils.getDefaultSubscriptionId(),
                         info.location, null, null, null, null);
@@ -515,7 +515,7 @@ public class Transaction {
     }
 
     public static MessageInfo getBytes(Context context, boolean saveMessage, String fromAddress,
-                                       String[] recipients, MMSPart[] parts, String subject)
+                                       String[] recipients, MMSPart[] parts, String subject, int subscriptionId)
             throws MmsException {
         final SendReq sendRequest = new SendReq();
 
@@ -606,16 +606,16 @@ public class Transaction {
         info.bytes = bytesToSend;
 
         if (saveMessage) {
-            try {
-                PduPersister persister = PduPersister.getPduPersister(context);
-                info.location = persister.persist(sendRequest, Uri.parse("content://mms/outbox"), true, settings.getGroup(), null, settings.getSubscriptionId());
-            } catch (Exception e) {
-                Log.v("sending_mms_library", "error saving mms message");
-                Log.e(TAG, "exception thrown", e);
+//            try {
+//                PduPersister persister = PduPersister.getPduPersister(context);
+//                info.location = persister.persist(sendRequest, Uri.parse("content://mms/outbox"), true, settings.getGroup(), null, settings.getSubscriptionId());
+//            } catch (Exception e) {
+//                Log.v("sending_mms_library", "error saving mms message");
+//                Log.e(TAG, "exception thrown", e);
 
                 // use the old way if something goes wrong with the persister
-                insert(context, recipients, parts, subject);
-            }
+            insert(context, recipients, parts, subject, subscriptionId);
+//            }
         }
 
         try {
@@ -832,7 +832,7 @@ public class Transaction {
         return returnArray;
     }
 
-    private static Uri insert(Context context, String[] to, MMSPart[] parts, String subject) {
+    private static Uri insert(Context context, String[] to, MMSPart[] parts, String subject, int subscriptionId) {
         try {
             Uri destUri = Uri.parse("content://mms");
 
@@ -872,6 +872,7 @@ public class Transaction {
             mmsValues.put("pri", 129);
             mmsValues.put("tr_id", "T" + Long.toHexString(now));
             mmsValues.put("resp_st", 128);
+            mmsValues.put("sub_id", subscriptionId);
 
             // Insert message
             Uri res = context.getContentResolver().insert(destUri, mmsValues);
