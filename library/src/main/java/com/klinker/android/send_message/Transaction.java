@@ -852,7 +852,7 @@ public class Transaction {
             mmsValues.put("thread_id", thread_id);
             mmsValues.put("date", now / 1000L);
             mmsValues.put("msg_box", 4);
-            //mmsValues.put("m_id", System.currentTimeMillis());
+            mmsValues.put("m_id", System.currentTimeMillis());
             mmsValues.put("read", true);
             mmsValues.put("sub", subject != null ? subject : "");
             mmsValues.put("sub_cs", 106);
