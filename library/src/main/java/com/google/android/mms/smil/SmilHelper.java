@@ -1,11 +1,15 @@
 package com.google.android.mms.smil;
 
-import com.klinker.android.logger.Log;
 import com.android.mms.dom.smil.SmilDocumentImpl;
 import com.google.android.mms.ContentType;
 import com.google.android.mms.pdu_alt.PduBody;
 import com.google.android.mms.pdu_alt.PduPart;
-import org.w3c.dom.smil.*;
+
+import org.w3c.dom.smil.SMILDocument;
+import org.w3c.dom.smil.SMILElement;
+import org.w3c.dom.smil.SMILLayoutElement;
+import org.w3c.dom.smil.SMILMediaElement;
+import org.w3c.dom.smil.SMILParElement;
 
 
 public class SmilHelper {
@@ -15,6 +19,7 @@ public class SmilHelper {
     public static final String ELEMENT_TAG_AUDIO = "audio";
     public static final String ELEMENT_TAG_VIDEO = "video";
     public static final String ELEMENT_TAG_VCARD = "vcard";
+    public static final String ELEMENT_TAG_REF = "ref";
 
     public static SMILDocument createSmilDocument(PduBody pb) {
 
@@ -84,7 +89,10 @@ public class SmilHelper {
                 par.appendChild(textElement);
                 hasMedia = true;
             } else {
-                Log.e("creating_smil_document", "unknown mimetype");
+                SMILMediaElement textElement = createMediaElement(
+                        ELEMENT_TAG_REF, document, part.generateLocation());
+                par.appendChild(textElement);
+                hasMedia = false;
             }
         }
 
@@ -108,7 +116,7 @@ public class SmilHelper {
     }
 
     public static String escapeXML(String str) {
-        return str.replaceAll("&","&amp;")
+        return str.replaceAll("&", "&amp;")
                 .replaceAll("<", "&lt;")
                 .replaceAll(">", "&gt;")
                 .replaceAll("\"", "&quot;")
