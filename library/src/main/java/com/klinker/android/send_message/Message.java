@@ -39,11 +39,13 @@ public class Message {
         private byte[] media;
         private String contentType;
         private String name;
+        private String fileName;
 
-        public Part(byte[] media, String contentType, String name) {
+        public Part(byte[] media, String contentType, String name, String fileName) {
             this.media = media;
             this.contentType = contentType;
             this.name = name;
+            this.fileName = fileName;
         }
 
         public byte[] getMedia() {
@@ -56,6 +58,10 @@ public class Message {
 
         public String getName() {
             return name;
+        }
+
+        public String getFileName() {
+            return fileName;
         }
     }
 
@@ -322,7 +328,7 @@ public class Message {
      * @param name  is the name of the file
      */
     public void addAudio(byte[] audio, String name) {
-        addMedia(audio, "audio/wav", name);
+        addMedia(audio, "audio/wav", name, null);
     }
 
     /**
@@ -351,7 +357,7 @@ public class Message {
      * @param name  is the name of the video file
      */
     public void addVideo(byte[] video, String name) {
-        addMedia(video, "video/3gpp", name);
+        addMedia(video, "video/3gpp", name, null);
     }
 
     /**
@@ -372,18 +378,29 @@ public class Message {
      * @param mimeType is the mimeType of the media
      */
     public void addMedia(byte[] media, String mimeType) {
-        this.parts.add(new Part(media, mimeType, null));
+        this.parts.add(new Part(media, mimeType, null, null));
     }
 
     /**
      * Adds other media
      *
      * @param media    is the media you want to send
-     * @param mimeType is the mimetype of the media
-     * @param name     is the name of the file
+     * @param mimeType is the mimeType of the media
+     * @param fileName is the name of the file
      */
-    public void addMedia(byte[] media, String mimeType, String name) {
-        this.parts.add(new Part(media, mimeType, name));
+    public void addMedia(byte[] media, String mimeType, String fileName) {
+        this.parts.add(new Part(media, mimeType, null, fileName));
+    }
+
+    /**
+     * Adds other media
+     *
+     * @param media     is the media you want to send
+     * @param mimeType  is the mimetype of the media
+     * @param contentId is the name of the file
+     */
+    public void addMedia(byte[] media, String mimeType, String contentId, String fileName) {
+        this.parts.add(new Part(media, mimeType, contentId, fileName));
     }
 
     /**

@@ -16,6 +16,7 @@
 
 package com.klinker.android.send_message;
 
+import android.annotation.SuppressLint;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
@@ -457,9 +458,9 @@ public class Transaction {
             byte[] imageBytes = Message.bitmapToByteArray(image[i]);
 
             MMSPart part = new MMSPart();
-            part.MimeType = "image/jpeg";
-            part.Name = (imageNames != null) ? imageNames[i] : ("image_" + System.currentTimeMillis());
-            part.Data = imageBytes;
+            part.mimeType = "image/jpeg";
+            part.name = (imageNames != null) ? imageNames[i] : ("image_" + System.currentTimeMillis());
+            part.data = imageBytes;
             data.add(part);
         }
 
@@ -469,12 +470,13 @@ public class Transaction {
             for (Message.Part p : parts) {
                 MMSPart part = new MMSPart();
                 if (p.getName() != null) {
-                    part.Name = p.getName();
+                    part.name = p.getName();
                 } else {
-                    part.Name = p.getContentType().split("/")[0];
+                    part.name = p.getContentType().split("/")[0];
                 }
-                part.MimeType = p.getContentType();
-                part.Data = p.getMedia();
+                part.fileName = p.getFileName();
+                part.mimeType = p.getContentType();
+                part.data = p.getMedia();
                 data.add(part);
             }
         }
@@ -482,9 +484,9 @@ public class Transaction {
         if (text != null && !text.equals("")) {
             // add text to the end of the part and send
             MMSPart part = new MMSPart();
-            part.Name = "text";
-            part.MimeType = "text/plain";
-            part.Data = text.getBytes();
+            part.name = "text";
+            part.mimeType = "text/plain";
+            part.data = text.getBytes();
             data.add(part);
         }
 
@@ -508,6 +510,7 @@ public class Transaction {
         }
     }
 
+    @SuppressLint("Range")
     public static MessageInfo getBytes(Context context, boolean saveMessage, String fromAddress,
                                        String[] recipients, MMSPart[] parts, String subject)
             throws MmsException {
@@ -543,22 +546,22 @@ public class Transaction {
                 if (part != null) {
                     try {
                         PduPart partPdu = new PduPart();
-                        partPdu.setName(part.Name.getBytes());
-                        partPdu.setContentType(part.MimeType.getBytes());
+                        partPdu.setName(part.name.getBytes());
+                        partPdu.setContentType(part.mimeType.getBytes());
 
-                        if (part.MimeType.startsWith("text")) {
+                        if (part.mimeType.startsWith("text")) {
                             partPdu.setCharset(CharacterSets.UTF_8);
                         }
                         // Set Content-Location.
-                        partPdu.setContentLocation(part.Name.getBytes());
-                        int index = part.Name.lastIndexOf(".");
-                        String contentId = (index == -1) ? part.Name
-                                : part.Name.substring(0, index);
+                        partPdu.setContentLocation(part.name.getBytes());
+                        int index = part.name.lastIndexOf(".");
+                        String contentId = (index == -1) ? part.name
+                                : part.name.substring(0, index);
                         partPdu.setContentId(contentId.getBytes());
-                        partPdu.setData(part.Data);
+                        partPdu.setData(part.data);
 
                         pduBody.addPart(partPdu);
-                        size += ((2 * part.Name.getBytes().length) + part.MimeType.getBytes().length + part.Data.length + contentId.getBytes().length);
+                        size += ((2 * part.name.getBytes().length) + part.mimeType.getBytes().length + part.data.length + contentId.getBytes().length);
                     } catch (Exception e) {
                     }
                 }
@@ -634,7 +637,7 @@ public class Transaction {
 
     private static void sendMmsThroughSystem(Context context, String subject, List<MMSPart> parts, String fromAddress, String[] addresses, Intent explicitSentMmsReceiver, boolean save, Uri existingMessageUri) throws Exception {
         try {
-            final String fileName = "send." + String.valueOf(Math.abs(new Random().nextLong())) + ".dat";
+            final String fileName = "send." + Math.abs(new Random().nextLong()) + ".dat";
             File mSendFile = new File(context.getCacheDir(), fileName);
 
             SendReq sendReq = buildPdu(context, fromAddress, addresses, subject, parts);
@@ -776,21 +779,21 @@ public class Transaction {
     }
 
     private static int addTextPart(PduBody pb, MMSPart p, int id) {
-        String filename = p.Name;
+        String name = p.name;
         final PduPart part = new PduPart();
         // Set Charset if it's a text media.
-        if (p.MimeType.startsWith("text")) {
+        if (p.mimeType.startsWith("text")) {
             part.setCharset(CharacterSets.UTF_8);
         }
         // Set Content-Type.
-        part.setContentType(p.MimeType.getBytes());
+        part.setContentType(p.mimeType.getBytes());
         // Set Content-Location.
-        part.setContentLocation(filename.getBytes());
-        int index = filename.lastIndexOf(".");
-        String contentId = (index == -1) ? filename
-                : filename.substring(0, index);
+        part.setContentLocation(name.getBytes());
+        // Set Content-Id
+        int index = name.lastIndexOf(".");
+        String contentId = (index == -1) ? name : name.substring(0, index);
         part.setContentId(contentId.getBytes());
-        part.setData(p.Data);
+        part.setData(p.data);
         pb.addPart(part);
 
         return part.getData().length;
@@ -855,7 +858,7 @@ public class Transaction {
             long imageBytes = 0;
 
             for (MMSPart part : parts) {
-                imageBytes += part.Data.length;
+                imageBytes += part.data.length;
             }
 
             mmsValues.put("exp", imageBytes);
@@ -873,10 +876,10 @@ public class Transaction {
 
             // Create part
             for (MMSPart part : parts) {
-                if (part.MimeType.startsWith("image")) {
-                    createPartImage(context, messageId, part.Data, part.MimeType);
-                } else if (part.MimeType.startsWith("text")) {
-                    createPartText(context, messageId, new String(part.Data, "UTF-8"));
+                if (part.mimeType.startsWith("image")) {
+                    createPartImage(context, messageId, part.data, part.mimeType);
+                } else if (part.mimeType.startsWith("text")) {
+                    createPartText(context, messageId, new String(part.data, "UTF-8"));
                 }
             }
 
