@@ -279,15 +279,21 @@ public class Transaction {
 
             Calendar cal = Calendar.getInstance();
             ContentValues values = new ContentValues();
-            values.put("address", address);
-            values.put("body", settings.getStripUnicode() ? StripAccents.stripAccents(text) : text);
-            values.put("date", cal.getTimeInMillis() + "");
-            values.put("read", 1);
-            values.put("type", 4);
+            values.put(Telephony.Sms.ADDRESS, address);
+            values.put(Telephony.Sms.BODY, settings.getStripUnicode() ? StripAccents.stripAccents(text) : text);
+            values.put(Telephony.Sms.DATE, cal.getTimeInMillis() + "");
+            values.put(Telephony.Sms.READ, 1);
+            values.put(Telephony.Sms.TYPE, 4);
+
+            // insert subscription id only if it is a valid one.
+            int subscriptionId = settings.getSubscriptionId();
+            if (Settings.DEFAULT_SUBSCRIPTION_ID != subscriptionId) {
+                values.put(Telephony.Sms.SUBSCRIPTION_ID, subscriptionId);
+            }
 
             Log.v("send_transaction", "saving message with thread id: " + threadId);
 
-            values.put("thread_id", threadId);
+            values.put(Telephony.Sms.THREAD_ID, threadId);
             messageUri = context.getContentResolver().insert(Uri.parse("content://sms/"), values);
 
             Log.v("send_transaction", "inserted to uri: " + messageUri);
@@ -966,6 +972,6 @@ public class Transaction {
     }
 
     public static String getAddressSeparator() {
-        return "\\|";
+        return "|";
     }
 }
