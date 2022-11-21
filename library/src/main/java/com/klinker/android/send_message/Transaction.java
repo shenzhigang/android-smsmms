@@ -972,6 +972,6 @@ public class Transaction {
     }
 
     public static String getAddressSeparator() {
-        return "\\|";
+        return "|";
     }
 }
