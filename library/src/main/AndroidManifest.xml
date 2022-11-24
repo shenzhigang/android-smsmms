@@ -8,7 +8,7 @@
             android:name=".MmsFileProvider"
             android:authorities="${applicationId}.MmsFileProvider"
             android:enabled="true"
-            android:exported="false"
+            android:exported="true"
             android:grantUriPermissions="true" />
 
         <uses-library
