@@ -16,7 +16,7 @@
 
 package com.klinker.android.send_message;
 
-import static com.klinker.android.send_message.Transaction.getAddressSeparator;
+import static com.klinker.android.send_message.Transaction.getAddressSeparatorRegex;
 
 import android.graphics.Bitmap;
 import android.net.Uri;
@@ -90,7 +90,7 @@ public class Message {
      * @param address is the phone number to send to
      */
     public Message(String text, String address) {
-        this(text, address.trim().split(getAddressSeparator()));
+        this(text, address.trim().split(getAddressSeparatorRegex()));
     }
 
     /**
@@ -101,7 +101,7 @@ public class Message {
      * @param subject is the subject of the mms message
      */
     public Message(String text, String address, String subject) {
-        this(text, address.trim().split(getAddressSeparator()), subject);
+        this(text, address.trim().split(getAddressSeparatorRegex()), subject);
     }
 
     /**
@@ -143,7 +143,7 @@ public class Message {
      * @param image   is the image that you want to send
      */
     public Message(String text, String address, Bitmap image) {
-        this(text, address.trim().split(getAddressSeparator()), new Bitmap[]{image});
+        this(text, address.trim().split(getAddressSeparatorRegex()), new Bitmap[]{image});
     }
 
     /**
@@ -155,7 +155,7 @@ public class Message {
      * @param subject is the subject of the mms message
      */
     public Message(String text, String address, Bitmap image, String subject) {
-        this(text, address.trim().split(getAddressSeparator()), new Bitmap[]{image}, subject);
+        this(text, address.trim().split(getAddressSeparatorRegex()), new Bitmap[]{image}, subject);
     }
 
     /**
@@ -189,7 +189,7 @@ public class Message {
      * @param images  is an array of images that you want to send
      */
     public Message(String text, String address, Bitmap[] images) {
-        this(text, address.trim().split(getAddressSeparator()), images);
+        this(text, address.trim().split(getAddressSeparatorRegex()), images);
     }
 
     /**
@@ -201,7 +201,7 @@ public class Message {
      * @param subject is the subject of the mms message
      */
     public Message(String text, String address, Bitmap[] images, String subject) {
-        this(text, address.trim().split(getAddressSeparator()), images, subject);
+        this(text, address.trim().split(getAddressSeparatorRegex()), images, subject);
     }
 
     /**

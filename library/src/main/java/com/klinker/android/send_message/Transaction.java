@@ -502,7 +502,7 @@ public class Transaction {
             sendMmsThroughSystem(context, subject, data, fromAddress, addresses, explicitSentMmsReceiver, save, messageUri);
         } else {
             try {
-                MessageInfo info = getBytes(context, saveMessage, fromAddress, address.split(getAddressSeparator()),
+                MessageInfo info = getBytes(context, saveMessage, fromAddress, address.split(getAddressSeparatorRegex()),
                         data.toArray(new MMSPart[data.size()]), subject);
                 MmsRequestManager requestManager = new MmsRequestManager(context, info.bytes);
                 SendRequest request = new SendRequest(requestManager, Utils.getDefaultSubscriptionId(),
@@ -973,5 +973,9 @@ public class Transaction {
 
     public static String getAddressSeparator() {
         return "|";
+    }
+
+    public static String getAddressSeparatorRegex() {
+        return "\\" + getAddressSeparator();
     }
 }
