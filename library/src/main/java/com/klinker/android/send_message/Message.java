@@ -73,7 +73,6 @@ public class Message {
     private String[] imageNames;
     private List<Part> parts = new ArrayList<Part>();
     private boolean save;
-    private int delay;
     private Uri messageUri;
 
     /**
@@ -116,7 +115,6 @@ public class Message {
         this.images = new Bitmap[0];
         this.subject = null;
         this.save = true;
-        this.delay = 0;
     }
 
     /**
@@ -132,7 +130,6 @@ public class Message {
         this.images = new Bitmap[0];
         this.subject = subject;
         this.save = true;
-        this.delay = 0;
     }
 
     /**
@@ -217,7 +214,6 @@ public class Message {
         this.images = images;
         this.subject = null;
         this.save = true;
-        this.delay = 0;
     }
 
     /**
@@ -234,7 +230,6 @@ public class Message {
         this.images = images;
         this.subject = subject;
         this.save = true;
-        this.delay = 0;
     }
 
     /**
@@ -422,16 +417,6 @@ public class Message {
     }
 
     /**
-     * Sets the time delay before sending a message
-     * NOTE: this is only applicable for SMS messages
-     *
-     * @param delay the time delay in milliseconds
-     */
-    public void setDelay(int delay) {
-        this.delay = delay;
-    }
-
-    /**
      * Method to add another recipient to the object
      *
      * @param address is the string of the recipients phone number to add to end of recipients array
@@ -543,15 +528,6 @@ public class Message {
      */
     public boolean getSave() {
         return this.save;
-    }
-
-    /**
-     * Gets the time to delay before sending the message
-     *
-     * @return the delay time in milliseconds
-     */
-    public int getDelay() {
-        return this.delay;
     }
 
     /**

@@ -188,12 +188,10 @@ public class Transaction {
                 // add a dummy message for this thread if it is a group message
                 String mergedAddresses = TextUtils.join(getAddressSeparator(), addresses);
                 long broadCastThreadId = Utils.getOrCreateThreadId(context, new HashSet<>(Arrays.asList(addresses)));
-                sendSmsMessage(text, mergedAddresses, broadCastThreadId, message.getDelay(),
-                        sentMessageParcelable, deliveredParcelable);
+                sendSmsMessage(text, mergedAddresses, broadCastThreadId, sentMessageParcelable, deliveredParcelable);
             }
 
-            sendSmsMessages(text, addresses, message.getDelay(),
-                    sentMessageParcelable, deliveredParcelable);
+            sendSmsMessages(text, addresses, sentMessageParcelable, deliveredParcelable);
         }
     }
 
@@ -249,7 +247,6 @@ public class Transaction {
     private void sendSmsMessages(
             final String text,
             final String[] addresses,
-            final int delay,
             final Parcelable sentMessageParcelable,
             final Parcelable deliveredParcelable
     ) throws Exception {
@@ -258,9 +255,8 @@ public class Transaction {
             // save the message for each of the addresses
             for (String address : addresses) {
                 long smsThreadId = Utils.getOrCreateThreadId(context, address);
-                sendSmsMessage(text, address, smsThreadId, delay, sentMessageParcelable, deliveredParcelable);
+                sendSmsMessage(text, address, smsThreadId, sentMessageParcelable, deliveredParcelable);
             }
-
         }
     }
 
@@ -268,7 +264,6 @@ public class Transaction {
             final String text,
             final String address,
             final long threadId,
-            final int delay,
             final Parcelable sentMessageParcelable,
             final Parcelable deliveredParcelable
     ) throws Exception {
@@ -385,7 +380,7 @@ public class Transaction {
                     }
 
                     Log.v("send_transaction", "sending split message");
-                    sendDelayedSms(smsManager, address, parts, sPI, dPI, delay, messageUri);
+                    smsManager.sendMultipartTextMessage(address, null, parts, sPI, dPI);
                 }
             } else {
                 Log.v("send_transaction", "sending without splitting");
@@ -400,7 +395,7 @@ public class Transaction {
                 if (Utils.isDefaultSmsApp(context)) {
                     try {
                         Log.v("send_transaction", "sent message");
-                        sendDelayedSms(smsManager, address, parts, sPI, dPI, delay, messageUri);
+                        smsManager.sendMultipartTextMessage(address, null, parts, sPI, dPI);
                     } catch (Exception e) {
                         // whoops...
                         Log.v("send_transaction", "error sending message");
@@ -412,37 +407,6 @@ public class Transaction {
                     smsManager.sendMultipartTextMessage(address, null, parts, sPI, dPI);
                 }
             }
-        }
-    }
-
-    private void sendDelayedSms(final SmsManager smsManager, final String address,
-                                final ArrayList<String> parts, final ArrayList<PendingIntent> sPI,
-                                final ArrayList<PendingIntent> dPI, final int delay, final Uri messageUri) throws Exception {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Thread.sleep(delay);
-                } catch (Exception ignored) {
-                }
-
-                if (checkIfMessageExistsAfterDelay(messageUri)) {
-                    Log.v("send_transaction", "message sent after delay");
-                    smsManager.sendMultipartTextMessage(address, null, parts, sPI, dPI);
-                } else {
-                    Log.v("send_transaction", "message not sent after delay, no longer exists");
-                }
-            }
-        }).start();
-    }
-
-    private boolean checkIfMessageExistsAfterDelay(Uri messageUti) {
-        Cursor query = context.getContentResolver().query(messageUti, new String[]{"_id"}, null, null, null);
-        if (query != null && query.moveToFirst()) {
-            query.close();
-            return true;
-        } else {
-            return false;
         }
     }
 
